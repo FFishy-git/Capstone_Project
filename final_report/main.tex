@@ -10,7 +10,7 @@
 \DeclareMathOperator{\BF}{BF}
 
 %%%%%%%%%%%%-- start --%%%%%%%%%%%%%%%
-\title{\huge Project Proposal}
+\title{\huge Final Report for the Capstone Project}
 \author{Siyu Chen}
 % \date{}
 \begin{document}
@@ -22,6 +22,35 @@
 
 
 %%%%%%%%%%%%-- main content --%%%%%%%%%%
+\section{Project Outline}
+
+\subsection{Motivation}
+My plan for this final project is to help high school students to choose their colleges. 
+Choosing a college can be a daunting task for many students, as there are numerous factors to consider  on the institution's side such as location, cost, academic programs, and campus culture, and the student's side such as academic performance, extracurricular activities, and personal preferences.
+
+This project aims to simplify this process by building a recommender system that takes into account a student's performance data and college application results to predict the probability of admission to certain colleges and the future success of the student at those colleges.
+By providing students with a list of colleges that 
+are likely to be a good fit for them, this project can help students make more informed decisions about their college choices, potentially leading to greater academic success and career opportunities in the future.
+
+
+\subsection{Project Target}
+I will build a recommender system based on the student's profiles such as the SAT scores, ethnicity, gender, education budget, and so on. 
+Based on the student's profiles, the recommender system will consider the following factors to recommend a college to the student:
+\begin{itemize}
+    \item What will be the acceptance rate of this college for this student?
+    \item What will be the best fit for this student given his/her profiles and preferences, e.g., location, future earnings?
+\end{itemize}
+The recommender system will output a college ranking that is most likely to be a good fit for the student.
+
+\subsection{Data Source}
+The datasets I'm using in this project include the following:
+\begin{itemize}
+    \item College Scorecard released by US Dept of Education (\url{https://collegescorecard.ed.gov/}). The dataset features 7,000+ colleges and universities in the US and includes information on the institution's location, size, admission rate, average salary after graduation, Post-College Professional Success and so on. The dataset will be used to predict the future income and match the student's preference on the urbanization of the college.
+    \item IPEDS data released by National Center for Education Statistics (\url{https://nces.ed.gov/ipeds/use-the-data}). The dataset features the 25\% and 75\% percentile of test scores of students enrolled in each college.  
+    The dataset will be used to predict the acceptance rate.
+    Some other features are also included in this dataset, including percentage of students receiving financial aid, average cost and tuition fees, percent of different races, and so on.
+\end{itemize}
+
 \section{Modeling the Admission Rate}
 I model the acceptance likelihood as a function of the test score (including both the SAT and ACT scores, but without the high school GPA) and the student's gender. We use a product model for the likelihood as the following:
 \begin{align*}
@@ -54,8 +83,8 @@ Entrywise, we have
 Therefore, we can estimate the posterior Gaussian, and solve for the admission model $(\mu_1, \Sigma_1)$.
 The remaining question is how to obtain the mean and variance of the prior. 
 Note that the mean and variance are biased in the data since the test scores are collected only for enrolled students here. 
-However, this websites 
-\url{https://blog.prepscholar.com/sat-historical-percentiles-for-2014-2013-2012-and-2011} and \url{https://www.act.org/content/dam/act/unsecured/documents/Natl-Scores-2013-National2013.pdf} comes to our rescue as it collectes summary for SAT scores in 2013. 
+However, these websites 
+(\url{https://blog.prepscholar.com/sat-historical-percentiles-for-2014-2013-2012-and-2011}) and (\url{https://www.act.org/content/dam/act/unsecured/documents/Natl-Scores-2013-National2013.pdf}) come to our rescue as it collectes summary for SAT scores in 2013. 
 We summarize the results on the following table
 
 \begin{center}
