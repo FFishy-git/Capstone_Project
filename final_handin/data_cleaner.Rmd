@@ -215,4 +215,4 @@ scorecard <- scorecard[scorecard$UNITID %in% IPEDS_data$ID.number, ]
 # Filter out column "year" = 2011
 scorecard <- scorecard[scorecard$Year == 2011, ]
 write.csv(scorecard, "data/Scorecard_filtered_2011.csv", row.names = FALSE)
-```{r}
+```

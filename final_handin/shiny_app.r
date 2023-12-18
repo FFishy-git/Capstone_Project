@@ -17,8 +17,8 @@ ui <- fluidPage(
       numericInput("sat_writing", "SAT Writing Score:", min = 0, max = 800, value = 800),
       numericInput("act_composite", "ACT Composite Score:", min = 0, max = 36, value = 36),
       
+      # input for personal info
       selectInput("gender", "Gender:", choices = c("Male", "Female")),
-      
       selectInput("ethnicity", "Ethnicity:", choices = c("UGDS_WHITE", "UGDS_BLACK", "UGDS_HISP", "UGDS_ASIAN", "UGDS_AIAN", "UGDS_NHPI", "UGDS_2MOR", "UGDS_NRA", "UGDS_UNKN")), 
       # add a selectInput for the student's state, choise should be full name without capitalization
       selectInput("state", "State:", choices = c("Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "District of Columbia", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming")),

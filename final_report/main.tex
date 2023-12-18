@@ -15,19 +15,9 @@
 % \date{}
 \begin{document}
 \maketitle
-\begin{abstract}
-    reference link \url{https://www.kaggle.com/code/sumithbhongale/notebook4186f97a6b}
-
-\url{https://www.kaggle.com/code/kerneler/starter-college-admissions-c79081de-c}
-
-most relevant
-\url{https://www.kaggle.com/code/apollostar/which-college-is-best-for-you#student-case-studies}
-
-The IPEDS dataset
-\url{https://www.kaggle.com/code/yatin9045/us-university-selection-analysis/input}
-
-Illustration \url{https://storage.googleapis.com/kagglesdsdata/datasets/11/6609/FullDataDocumentation.pdf?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=gcp-kaggle-com%40kaggle-161607.iam.gserviceaccount.com%2F20231217%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20231217T170158Z&X-Goog-Expires=259200&X-Goog-SignedHeaders=host&X-Goog-Signature=dbdc1da801cf76fb6b477286d5eec1b9dc80a4bf26877aa6d63497ab3eb94ebf83715202d378d09233e31235c44a8d02e1cdc465a590e4c70922883a94e84fad5659257674fa730f2f223222a2a3f547fa38dbd56fae2bbd901d5f96a9e6f1f34517ee01ade63b1808e8e1637d587b2b9b28a4f077fdbc64ff828781a7497049ad503ebdfb94dc4cd1f3bc89873b7f209095d24ee425e092a126d0c7e41a2709fe7aa04600d22b8bd9617a0ab56acd2a1bc1720926f733a9b981cf27e1ff1d91ee491a7458914607558faab66f983beecdf1dc00b8374c9e44558a90d7cd8da0c2c652c5576be6b3de1a509867b977e52b865b102c1438ff3d67e1f274f9d564}
-\end{abstract}
+% \begin{abstract}
+    
+% \end{abstract}
 
 
 
@@ -127,26 +117,114 @@ A simple application of the Bayesian rule gives
 \end{align*}
 Note that the Bayes Factor reflects the \say{advantage} of school $H$ over the other schools in terms of the event $E$.
 I will include the Bayes Factor in the analysis with some manually selected coefficients to determine the score of each school.
+I calculate the Bayesian Factor for each school under features \say{ethnicity} (funtion \say{predict\_BF\_ethnicity}), \say{finacial aid} (function \say{predict\_BF\_financial\_aid}), and \say{earnings in 6 years after a student enrolls in college} (function \say{predict\_BF\_earning}).
+Users can select the strength of the Bayesian Factor by adjusting the coefficients in the shiny app.
 
 
 \section{Data Cleaning}
+\subsection{School Selection}
+We first aim to clean the data \say{IPEDS\_data.xlsx} and identify the schools of interest. 
+The data is from 2013 which is a little bit old. 
+More recent data does not contain some of the test scores that we need.
+The implemented code filters out the schools based on the following conditions:
 
-% estimating the prior's mean and variance. 
-% The mean is given by averaging the mean of each university according to the number of students admitted, and the variance is estimated by
-% \begin{align*}
-%     \hat \mu^{(i)} &= \frac{\sum_{k} \mu_{2, k}^{(i)} \cdot n_k}{\sum_{k} n_k}, \\
-%     \hat{(\sigma^{(i)})^2} &= \frac{\sum_{k}\left((\sigma_{2, k}^{(i)})^2 + (\mu_{2, k}^{i})^2\right) \cdot n_k - \hat \mu^2 \cdot \sum_{k} n_k}{\sum_k n_k}, 
-% \end{align*}
-% where $n_k$ is the number of enrolled students for each school $k$. 
-% Note that both are unbiased estimators. 
+\begin{enumerate}
+    \item The school is not included in the list of schools in the file \texttt{data/CSV\_11292023-550.csv}, where the file is downloaded from \url{https://nces.ed.gov/ipeds/use-the-data} for a list of major universities with undergraduates in the US.
+    \item The school has less than 50\% of freshmen submitting SAT scores or ACT scores.
+\end{enumerate}
+The filtered data is then stored in the file \texttt{data/IPEDS\_with\_scores.csv}. 
+
+\subsection{Fill in Missing Scores}
+The missing values in the test scores columns are filled using linear regression. The process is as follows:
+
+\begin{enumerate}
+    \item Load the necessary libraries and data. The data is loaded from the \texttt{IPEDS\_with\_scores.csv} and \texttt{IPEDS\_for\_regression.csv} files, where the latter file contains all the universities that fully report their test scores. The columns to be filled are \begin{itemize}
+        \item SAT Critical Reading 25th percentile score
+        \item SAT Critical Reading 75th percentile score
+        \item SAT Math 25th percentile score
+        \item SAT Math 75th percentile score
+        \item SAT Writing 25th percentile score
+        \item SAT Writing 75th percentile score
+        \item ACT Composite 25th percentile score
+        \item ACT Composite 75th percentile score
+    \end{itemize}
+    \item Iterate over all possible patterns of missingness. For each pattern, create two lists: \texttt{missing\_columns} and \texttt{nonmissing\_columns}. The \texttt{missing\_columns} list contains the names of the columns that have missing values, and the \texttt{nonmissing\_columns} list contains the names of the columns that don't have missing values. If there are no missing values for the current pattern, skip to the next pattern. 
+    If there are missing values, run a linear regression on the non-missing rows to predict the missing values. The \texttt{train} function from the \texttt{caret} library is used to train the linear regression model. The \texttt{predict} function is then used to predict the missing values.
+    Then I store the predicted values in the original data frame at the correct rows and columns.
+    \item Finally, write the data with the filled values to a new CSV file named \texttt{IPEDS\_filled.csv}.
+\end{enumerate}
+
+\subsection{Clean Other Data}
+Filter the \texttt{MERGED2013\_PP.csv} data by selecting the universities of interest, and add a column \texttt{School\_Prob} to the data, where the probability $p(H)$ for each school is calculated by 
+\begin{align*}
+    p(H) = \frac{\text{number of students enrolled in school $H$}}{\text{total number of students enrolled in all schools}}.
+\end{align*}
+I also filter the Scorecard data similarly. Note that the year 2011 is chosen because it is the latest year (before 2013) that has survey data for the earnings after 6 years of enrollment.
+The Scorecard data is not included in the submission as it is too large.
+The full data can be downloaded from \url{https://collegescorecard.ed.gov/}.
+
+\section*{Shiny App Design}
+The source code for the Shiny app is in the \texttt{shiny\_app.R} file. 
+\subsection*{User Interface (UI) Design}
+
+The Shiny app features a user-friendly interface with the following main components:
+
+\begin{itemize}
+  \item \textbf{Test Scores Input:} Numeric input fields for SAT Critical Reading, SAT Math, SAT Writing, and ACT Composite scores.
+  
+  \item \textbf{Personal Information Input:} Select inputs for Gender, Ethnicity, State, and a multi-select input for Urbanization.
+  
+  \item \textbf{Preference Adjustment:} Slider inputs allow users to adjust preferences for ethnicity strength, financial aid strength, and earning strength.
+  
+  \item \textbf{Filtering Criteria:} Slider inputs for minimal and maximal cost of attendance, minimal and maximal admission rate, and a reset button to restore default preferences.
+  
+  \item \textbf{Reset Personal Info:} A button to reset personal information inputs.
+\end{itemize}
+
+\subsection*{Functionality}
+
+The app functionality involves dynamic computation and ranking of universities based on user preferences. Key functionalities include:
+
+\begin{itemize}
+  \item \textbf{Data Loading:} Upon app initiation, data is loaded from CSV files, and relevant datasets are merged.
+  
+  \item \textbf{Likelihood Calculation:} Reactive expressions compute the likelihood of admission according to the test scores and gender information provided by the user.
+  
+  \item \textbf{Bayesian Factor Calculation:} Bayesian factors for ethnicity, financial aid, and earning are calculated based on user preferences and data.
+  
+  \item \textbf{Cost and Admission Rate Filtering:} Universities are filtered based on user-defined criteria for cost, admission rate and urbanization.
+  
+  \item \textbf{Ranking:} Universities satisfying user criteria are ranked in descending order of the combined Bayesian factor.
+\end{itemize}
+
+\subsection*{Output Calculation}
+
+The output is presented in a ranked table format, displaying universities along with their corresponding ranks, costs, admission rates, and Bayesian scores. The design enables users to make informed decisions based on their preferences and criteria.
+
+The interface for the shiny app looks as the following
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{app.png}
+    \caption{The interface for the shiny app}
+    \label{fig:app}
+\end{figure} 
+Here, in \Cref{fig:app}, we assume there is a white male student with SAT scores 600 for each subject and ACT score 25 who comes from Connecticut. 
+He targets at a school located in a large city with a cost of attendance between \$30,000 and \$100,000 and with an admission rate larger than 0.5.
+His main concerns is the future earnings, therefore he sets the strength of the Bayesian Factor for earnings to be the largest.
+The app then returns a list of candidate universities ranked in descending order of the Bayesian Factor scores.
 %%%%%%%%%%%%-- reference --%%%%%%%%%%%
 % \newpage
 \bibliographystyle{ims}
 \bibliography{reference}
-\url{https://www.kaggle.com/code/sumithbhongale/notebook4186f97a6b}\\
 \url{https://collegescorecard.ed.gov/}\\
-\url{https://nces.ed.gov/ipeds/use-the-data}
-
+\url{https://nces.ed.gov/ipeds/use-the-data}\\
+\url{https://www.kaggle.com/code/sumithbhongale/notebook4186f97a6b}\\
+\url{https://www.kaggle.com/code/kerneler/starter-college-admissions-c79081de-c}\\
+\url{https://www.kaggle.com/code/apollostar/which-college-is-best-for-you#student-case-studies}\\
+\url{https://www.kaggle.com/code/yatin9045/us-university-selection-analysis/input}\\
+\url{https://blog.prepscholar.com/sat-historical-percentiles-for-2014-2013-2012-and-2011}\\
+\url{https://www.act.org/content/dam/act/unsecured/documents/Natl-Scores-2013-National2013.pdf}
+% \url{https://storage.googleapis.com/kagglesdsdata/datasets/11/6609/FullDataDocumentation.pdf?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=gcp-kaggle-com%40kaggle-161607.iam.gserviceaccount.com%2F20231217%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20231217T170158Z&X-Goog-Expires=259200&X-Goog-SignedHeaders=host&X-Goog-Signature=dbdc1da801cf76fb6b477286d5eec1b9dc80a4bf26877aa6d63497ab3eb94ebf83715202d378d09233e31235c44a8d02e1cdc465a590e4c70922883a94e84fad5659257674fa730f2f223222a2a3f547fa38dbd56fae2bbd901d5f96a9e6f1f34517ee01ade63b1808e8e1637d587b2b9b28a4f077fdbc64ff828781a7497049ad503ebdfb94dc4cd1f3bc89873b7f209095d24ee425e092a126d0c7e41a2709fe7aa04600d22b8bd9617a0ab56acd2a1bc1720926f733a9b981cf27e1ff1d91ee491a7458914607558faab66f983beecdf1dc00b8374c9e44558a90d7cd8da0c2c652c5576be6b3de1a509867b977e52b865b102c1438ff3d67e1f274f9d564}
 %%%%%%%%%%%% -- appendix -- %%%%%%%%%%%
 % \newpage 
 % \appendix
