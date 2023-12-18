@@ -1,0 +1,153 @@
+\pdfoutput=1
+\documentclass[11pt]{article}
+\usepackage[OT1]{fontenc}
+\usepackage{smile}
+% \renewcommand{\baselinestretch}{1.1}
+%%%%%%%%%%%%-- Comments --%%%%%%%%%%%%
+% \newcommand{\Zhuoran}[1]{{\color{blue}[Zhuoran: #1]}}
+% \newcommand{\Siyu}[1]{{\color{purple}[Siyu: #1]}}
+%%%%%%%%%%%%-- new command --%%%%%%%%%%%%
+\DeclareMathOperator{\BF}{BF}
+
+%%%%%%%%%%%%-- start --%%%%%%%%%%%%%%%
+\title{\huge Project Proposal}
+\author{Siyu Chen}
+% \date{}
+\begin{document}
+\maketitle
+\begin{abstract}
+    reference link \url{https://www.kaggle.com/code/sumithbhongale/notebook4186f97a6b}
+
+\url{https://www.kaggle.com/code/kerneler/starter-college-admissions-c79081de-c}
+
+most relevant
+\url{https://www.kaggle.com/code/apollostar/which-college-is-best-for-you#student-case-studies}
+
+The IPEDS dataset
+\url{https://www.kaggle.com/code/yatin9045/us-university-selection-analysis/input}
+
+Illustration \url{https://storage.googleapis.com/kagglesdsdata/datasets/11/6609/FullDataDocumentation.pdf?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=gcp-kaggle-com%40kaggle-161607.iam.gserviceaccount.com%2F20231217%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20231217T170158Z&X-Goog-Expires=259200&X-Goog-SignedHeaders=host&X-Goog-Signature=dbdc1da801cf76fb6b477286d5eec1b9dc80a4bf26877aa6d63497ab3eb94ebf83715202d378d09233e31235c44a8d02e1cdc465a590e4c70922883a94e84fad5659257674fa730f2f223222a2a3f547fa38dbd56fae2bbd901d5f96a9e6f1f34517ee01ade63b1808e8e1637d587b2b9b28a4f077fdbc64ff828781a7497049ad503ebdfb94dc4cd1f3bc89873b7f209095d24ee425e092a126d0c7e41a2709fe7aa04600d22b8bd9617a0ab56acd2a1bc1720926f733a9b981cf27e1ff1d91ee491a7458914607558faab66f983beecdf1dc00b8374c9e44558a90d7cd8da0c2c652c5576be6b3de1a509867b977e52b865b102c1438ff3d67e1f274f9d564}
+\end{abstract}
+
+
+
+%%%%%%%%%%%%-- main content --%%%%%%%%%%
+\section{Modeling the Admission Rate}
+I model the acceptance likelihood as a function of the test score (including both the SAT and ACT scores, but without the high school GPA) and the student's gender. We use a product model for the likelihood as the following:
+\begin{align*}
+    \ell (s, r, g, S, C) = \ell_{score}(s) \cdot \ell_{gender}(g) 
+\end{align*}
+where $s$ is the test score vector, $g$ represents the gender. 
+Since there is only information on the enrolled students' (posterior) rather than the applicants' (prior) features such as percentage of each race, I do not model other factors' influence on the admission likelihood.
+I illustrate the model in the following.
+
+\paragraph{Test Score Likelihood Model.}
+We model the test score prior as $s\sim p_{score} = \mathcal{N}(\mu, \Sigma)$, where we assume $\Sigma$ to be diagonal (This assumption is a little bit strong. But as our dataset only contains the 25 and 75 quantile of each individual score, it is hard to extract the correlation between these scores in the variance. Note that we still allow their means to be related.)
+The distribution of the test score among the admitted students depends on two factors: the school's admission likelihood $f_{school}(s)$ based on the test scores and the student's likelihood of accepting this school's offer $f_{student}(s)$ given his/her test scores.
+Note that the school's admission likelihood $f_{school}(s)$ should be monotonically increasing with respect to the test scores while the student's preference $f_{student}(s)$ could be monotonically decreasing with respect to the test scores. The rationality behind this is that schools tend to admit students with higher test scores while students with high test scores seldom consider schools with low rankings, which is often associated with low admission standards.
+
+Therefore, we can model enrollment likelihood as $f_{enroll}(s)=f_{school}(s) f_{student}(s)$. 
+By the previous discussion, we can model $f(s)$ as another Gaussian distribution $\mathcal{N}(\mu_1, \Sigma_1)$, where $\Sigma_1$ is also diagonal.
+Therefore, the posterior distribution of scores upon acceptance is just
+\begin{align*}
+    q(s \,|\, a=1) \propto f(s) \ell_{score} (s) \sim \mathcal{N}\left(
+        \underbrace{(\Sigma^{-1} + \Sigma_1^{-1})^{-1}(\Sigma^{-1} \mu + \Sigma_1^{-1} \mu_1)}_{\mu_2}, \quad 
+        \underbrace{(\Sigma^{-1} + \Sigma_{1}^{-1})^{-1}}_{\Sigma_2}
+    \right), 
+\end{align*}
+where $a\in\{0, 1\}$ is the indicator for admission. 
+Entrywise, we have 
+\begin{align}
+    \mu_2^i = \frac{(\sigma_1^{(i)})^2 \mu^i + (\sigma^{(i)})^2 \mu_1^i}{(\sigma_1^{(i)})^2 + (\sigma^{(i)})^2}, \quad 
+    (\sigma_2^{(i)})^2 = \frac{(\sigma_1^{(i)})^2 \cdot (\sigma^{(i)})^2}{(\sigma_1^{(i)})^2 + (\sigma^{(i)})^2}. \label{eq: posterior estimator}
+\end{align}
+Therefore, we can estimate the posterior Gaussian, and solve for the admission model $(\mu_1, \Sigma_1)$.
+The remaining question is how to obtain the mean and variance of the prior. 
+Note that the mean and variance are biased in the data since the test scores are collected only for enrolled students here. 
+However, this websites 
+\url{https://blog.prepscholar.com/sat-historical-percentiles-for-2014-2013-2012-and-2011} and \url{https://www.act.org/content/dam/act/unsecured/documents/Natl-Scores-2013-National2013.pdf} comes to our rescue as it collectes summary for SAT scores in 2013. 
+We summarize the results on the following table
+
+\begin{center}
+\begin{tabular}{c c c}
+    \hline\hline
+     & mean & standard deviation \\
+     \hline
+     SAT Critical Reading & 496 & 115 \\
+     SAT Mathematics & 514 & 118 \\
+     SAT Writing & 488 & 114 \\
+     ACT Composite & 20.9 & 5.4 \\
+     \hline\hline
+\end{tabular}
+\end{center}
+
+Note that the estimated standard deviation $\sigma_2^{(i)}$ could potentially be larger than the prior, which leads to no reasonable solution according to \eqref{eq: posterior estimator}.
+This could happen when our model does not capture what is happening in the real world, for instance, when the acceptance likelihood is far from a Gaussian distribution. 
+However, as indicated by the experimental results, such an event is very rare in the data (8 in 468 schools). 
+In that case, I still estimate the variance according to \eqref{eq: posterior estimator} but set the "nan" and negative values to infinity. 
+The reason is that when a school' admission rate on a spefic score violates the model, a natural thing to do is ignoring the dependency of the admission rate on the violated score, which is achieved by using an extremely flat normal. 
+
+We then model the likelihood by the following function 
+\say{truncated dnorm}
+\begin{align} \label{eq: truncated dnorm}
+    \ell_{score}(s) = \prod_{i}\exp\left(-\frac{{(\mathrm{ReLU}(\mu_1^{(i)} - s^{(i)}))^2}}{{2 (\sigma_1^{i})^2}}\right),
+\end{align}
+where $\mathrm{ReLU}(x) = \max\{0, x\}$ is the rectified linear unit function, and we allow $\sigma_1^{(i)}$ to be $+\infty$.
+The intuition for \eqref{eq: truncated dnorm} is that following what I have assumed $\ell_{score}(s)=f_{school}(s) f_{student}(s)$ and the fact schools always tend to choose students with higher scores, where students tend to choose better schools (with higher admission standards), we can model $f_{school}(s)$ and $f_{student}(s)$ as two \say{half} Gaussian, i.e.
+\begin{align*}
+    f_{school}(s) &= \exp\left(-\frac{{(\mathrm{ReLU}(\mu_1^{(i)} - s^{(i)}))^2}}{{2 (\sigma_1^{i})^2}}\right), \\
+    f_{student}(s) &= \exp\left(-\frac{{(\mathrm{ReLU}(s^{(i)} - \mu_1^{(i)}))^2}}{{2 (\sigma_1^{i})^2}}\right).
+\end{align*}
+The product of these two functions then gives us the Gaussian likelihood $f_{enroll}(s)$ of enrollment.
+
+\paragraph{Likelihood Model for Gender.}
+We next characterize the influence of gender. 
+We assume a priori that the likelihood of a applicant being male or female is equally likely, i.e., the gender prior is 0.5 for both male and female applications (which is close to the truth but may not be accurate in reality). 
+Suppose that gender is weakly coupled with academy performance. 
+We model the bias between gender as a likelihood ratio, i.e., 
+\begin{align*}
+    \ell_{gender} (g) = \frac{\mathrm{percentage}(g)}{\max\left\{\mathrm{percentage}(g), 1 - \mathrm{percentage}(g)\right\}},
+\end{align*}
+Note that when there is no bias, the gender does not influence the admission rate. 
+When bias exists, $\ell_{gender}$ models the \say{disadvantage} of a specific gender in the admission process.
+
+\section{Bayesian Factor}
+In the analysis, we take an example by using the student's family income to illustrate the computation of Bayes Factors. 
+Let $E=\{\text{student's family-income} > x\}$ be the event of interest.
+Let $H$ denote the school of interest and $\Omega$ denote all the schools.
+Let's define $p(H)$ as the prior probability of enrollment at school $H$, namely the proportion of students enrolled in school $H$ among all the students enrolled in $\Omega$.
+The Bayesian Factor $\BF(E, H)$ is then defined as the likelihood ratio as the following: 
+\begin{align*}
+\BF(E, H) & = \log \frac{p(E\given H)}{p(E\given \Omega)}.
+% \label{eq:BF}
+\end{align*}
+A simple application of the Bayesian rule gives 
+\begin{align*}
+\BF(E, H) & = \log \frac{p(E\given H)}{p(E\given \Omega)}  = \log \frac{p(H\given E)}{p(H)} = \log\frac{p(H, E)}{p(H)p(E)}.
+\end{align*}
+Note that the Bayes Factor reflects the \say{advantage} of school $H$ over the other schools in terms of the event $E$.
+I will include the Bayes Factor in the analysis with some manually selected coefficients to determine the score of each school.
+
+
+\section{Data Cleaning}
+
+% estimating the prior's mean and variance. 
+% The mean is given by averaging the mean of each university according to the number of students admitted, and the variance is estimated by
+% \begin{align*}
+%     \hat \mu^{(i)} &= \frac{\sum_{k} \mu_{2, k}^{(i)} \cdot n_k}{\sum_{k} n_k}, \\
+%     \hat{(\sigma^{(i)})^2} &= \frac{\sum_{k}\left((\sigma_{2, k}^{(i)})^2 + (\mu_{2, k}^{i})^2\right) \cdot n_k - \hat \mu^2 \cdot \sum_{k} n_k}{\sum_k n_k}, 
+% \end{align*}
+% where $n_k$ is the number of enrolled students for each school $k$. 
+% Note that both are unbiased estimators. 
+%%%%%%%%%%%%-- reference --%%%%%%%%%%%
+% \newpage
+\bibliographystyle{ims}
+\bibliography{reference}
+\url{https://www.kaggle.com/code/sumithbhongale/notebook4186f97a6b}\\
+\url{https://collegescorecard.ed.gov/}\\
+\url{https://nces.ed.gov/ipeds/use-the-data}
+
+%%%%%%%%%%%% -- appendix -- %%%%%%%%%%%
+% \newpage 
+% \appendix
+\end{document}

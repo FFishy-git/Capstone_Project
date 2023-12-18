@@ -1,0 +1,218 @@
+Let's clean the data and find the schools of interest.
+The below codes aim to filter out the schools that have at least one of the following conditions:
+1. The school is not in the list of schools in "data/CSV_11292023-550.csv"
+2. The school has less than 50% of freshmen submitting SAT scores or ACT scores.
+The filtered data is stored in "data/IPEDS_with_scores.csv"
+```{r}
+# Load necessary libraries
+library(readr)
+library(readxl)
+library(dplyr)
+library(writexl)
+
+# read "data/CSV_11292023-550.csv" and get the column "unitid". 
+uni_ds <- read_csv("data/CSV_11292023-550.csv", show_col_types = FALSE)
+
+# From "data/IPEDS_data.xlsx", filter out the rows with column "ID number" as those in column "unitid" of "data/CSV_11292023-550.csv"
+data <- read_excel("data/IPEDS_data.xlsx")
+data <- data %>% filter(`ID number` %in% uni_ds$unitid)
+
+# filter out the rows with columns "Percent of freshmen submitting SAT scores" and "Percent of freshmen submitting ACT scores" are not null and has at least one of them greater than 50%
+data <- data %>% filter((!is.na(`Percent of freshmen submitting SAT scores`) | !is.na(`Percent of freshmen submitting ACT scores`)) & ((`Percent of freshmen submitting SAT scores` > 50) | (`Percent of freshmen submitting ACT scores` > 50)))
+
+# Store the data for visualization
+write_csv(data, "data/cleaned/IPEDS_with_scores.csv")
+
+# print the shape of the data
+print(dim(data))
+
+```
+Find the part of data that has all the test scores and the percents of freshmen submitting the scores are greater than 50%.
+```{r}
+# Load necessary libraries
+library(readr)
+library(dplyr)
+library(writexl)
+library(ggplot2)
+library(caret)
+
+# Read the data
+data <- read_csv("data/cleaned/IPEDS_with_scores.csv", show_col_types = FALSE)
+print(dim(data))
+
+# Filter the data
+data <- data %>% 
+  filter(`Percent of freshmen submitting SAT scores` > 50 | `Percent of freshmen submitting ACT scores` > 50) %>%
+  filter(!is.na(`SAT Critical Reading 25th percentile score`),
+         !is.na(`SAT Critical Reading 75th percentile score`),
+         !is.na(`SAT Math 25th percentile score`),
+         !is.na(`SAT Math 75th percentile score`),
+         !is.na(`SAT Writing 25th percentile score`),
+         !is.na(`SAT Writing 75th percentile score`),
+         !is.na(`ACT Composite 25th percentile score`),
+         !is.na(`ACT Composite 75th percentile score`))
+
+# Store the data for linear regression
+write_csv(data, "data/cleaned/IPEDS_for_regression.csv")
+```
+
+Next, we fill out the missing values in the test scores columns by linear regression with the existing values.
+```{r}
+# Load necessary libraries
+library(readr)
+library(dplyr)
+
+# Load the data
+data <- read_csv("data/cleaned/IPEDS_with_scores.csv")
+# add a column for index
+data$index <- 1:nrow(data)
+# Load data for regression
+data_not_missing <- read_csv("data/cleaned/IPEDS_for_regression.csv")
+
+# Define the columns to fill
+score_name_list <- c(
+  'SAT Critical Reading 25th percentile score',
+  'SAT Math 25th percentile score',
+  'SAT Writing 25th percentile score',
+  'SAT Critical Reading 75th percentile score',
+  'SAT Math 75th percentile score',
+  'SAT Writing 75th percentile score',
+  'ACT Composite 25th percentile score',
+  'ACT Composite 75th percentile score'
+)
+
+for(i in 1:255) {
+  missingness_pattern <- as.integer(intToBits(i)[1:8])
+  data_missing <- data
+  missing_columns <- c()
+  nonmissing_columns <- c()
+  for(j in 1:8) {
+    if(missingness_pattern[j] == 1) {
+      data_missing <- data_missing[is.na(data_missing[[score_name_list[j]]]),]
+      missing_columns <- c(missing_columns, score_name_list[j])
+    } else {
+      data_missing <- data_missing[!is.na(data_missing[[score_name_list[j]]]),]
+      nonmissing_columns <- c(nonmissing_columns, score_name_list[j])
+    }
+  }
+  # if there is no missingness, we skip
+  if(nrow(data_missing) == 0) next
+  # if there is missingness, we run linear regression on the non-missing rows to predict the missing ones
+  X <- data_not_missing[, nonmissing_columns]
+  y <- data_not_missing[, missing_columns]
+  
+  # create an empty dataframe y_pred to store the predicted values, where the column names are given by missing_columns
+  y_pred <- data.frame(matrix(ncol = length(missing_columns), nrow = nrow(data_missing)))
+  colnames(y_pred) <- missing_columns
+  for (column in colnames(y)) {
+    reg <- train(X, y[[column]], method = "lm")
+    y_pred[, column] <- predict(reg, newdata = data_missing[, nonmissing_columns])
+  }
+  
+  # Store y_pred into data at the correct rows and columns
+  data[data_missing$index, missing_columns] <- y_pred
+}
+
+# Store the data
+write_csv(data, "data/cleaned/IPEDS_filled.csv")
+```
+
+Add columns for estimating the admission rate
+```{r}
+# load the data from "data/IPEDS_filled.csv"
+data <- read.csv("data/cleaned/IPEDS_filled.csv")
+
+# estimate the posterior Gaussian using the columns:
+  # SAT Critical Reading 25th percentile score	
+  # SAT Critical Reading 75th percentile score	
+  # SAT Math 25th percentile score	
+  # SAT Math 75th percentile score	
+  # SAT Writing 25th percentile score	
+  # SAT Writing 75th percentile score	
+  # ACT Composite 25th percentile score	
+  # ACT Composite 75th percentile score
+
+# item_list = ["SAT.Critical.Reading", "SAT.Math", "SAT.Writing", "ACT.Composite"], mu, and sd
+item_list <- c("SAT.Critical.Reading", "SAT.Math", "SAT.Writing", "ACT.Composite")
+test_scores_summary <- list(
+  SAT.Critical.Reading = list(mean = 496, sd = 115),
+  SAT.Math = list(mean = 514, sd = 118),
+  SAT.Writing = list(mean = 488, sd = 114),
+  ACT.Composite = list(mean = 20.9, sd = 5.4)
+)
+
+# Read the columns with the number "Enrolled total" for each school 
+enrolled_total <- data[["Enrolled.total"]]
+
+# read the corresponding columns by looping through the item_list
+for (i in 1:length(item_list)) {
+  # get the 25th percentile score
+  q25 <- data[[paste(item_list[i], "25th.percentile.score", sep = ".")]]
+  # get the 75th percentile score
+  q75 <- data[[paste(item_list[i], "75th.percentile.score", sep = ".")]]
+  
+  # get the z-scores for the 25% and 75% quantiles
+  z25 <- qnorm(0.25)
+  z75 <- qnorm(0.75)
+  
+  # Estimate the mean and standard deviation
+  mean_est <- (q25 + q75) / 2
+  sd_est <- (q75 - mean_est) / z75
+  
+  # get the prior mean and standard deviation from the test_scores_summary
+  mu <- test_scores_summary[[item_list[i]]][["mean"]]
+  sd <- test_scores_summary[[item_list[i]]][["sd"]]
+  
+  # estimate the standard deviation of the likelihood model
+  sd1_sq <- 1 / (1 / sd_est ^ 2 - 1 / sd ^ 2)
+  # set the nan and negative values to infinity, since these schools' admission likelihood has low dependency on this test score in our later model, we'll set the model to be constant one for these schools and test scores.
+  sd1_sq[is.nan(sd1_sq) | sd1_sq < 0] <- Inf
+  sd1 = sqrt(sd1_sq)
+  
+  # estimate the mean of the likelihood model
+  mu1 = (mu + mean_est * (sd / sd1) ^ 2) / (1 + (sd / sd1) ^ 2)
+  
+  # store mu1 and sd1 into the data as a new column
+  data[, paste(item_list[i], "likelihood.mean", sep = ".")] <- c(mu1)
+  data[, paste(item_list[i], "likelihood.sd", sep = ".")] <- c(sd1)
+  
+  # print the number of schools with sd > sd_est
+  print(paste("The number of schools with sd > sd_est for", item_list[i], "is", sum(sd > sd_est), "/", nrow(data)))
+}
+
+# store the data
+write.csv(data, "data/cleaned/IPEDS_filled.csv", row.names = FALSE)
+```
+Filter the MERGED2023_PP data, and add a column "School_Prob" to the data
+```{r}
+# Read data "data/MERGED2013_PP.csv", and only keep the rows with "UNITID" in the "data/IPEDS_filled.csv" under the column "ID.number", and also keep the order in "data/IPEDS_filled.csv"
+# store the data into "data/MERGED2013_filtered.csv"
+data <- read.csv("data/MERGED2013_PP.csv")
+ID.number <- read.csv("data/cleaned/IPEDS_filled.csv")[["ID.number"]]
+data <- data[data[["UNITID"]] %in% ID.number, ]
+# keep the order in "data/IPEDS_filled.csv"
+data <- data[match(ID.number, data[["UNITID"]]), ]
+
+# add a new column "school_prob" to the data
+school_prob <- as.numeric(data[["UGDS"]]) / sum(as.numeric(data[["UGDS"]]))
+data[, "School_Prob"] <- school_prob
+
+write.csv(data, "data/cleaned/MERGED2013_filtered.csv", row.names = FALSE)
+```
+
+Filter the Scorecard data (Note that in the submission, the Scorecard data is already filtered, so this step is not necessary). The year 2011 is chosen because it is the latest year that has survey data for the earnings after 6 years of enrollment.
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Read the data
+scorecard <- read.csv("data/Scorecard.csv")
+IPEDS_data <- read.csv("data/cleaned/IPEDS_filled.csv")
+
+# Only keep the rows with "UNITID" in the "data/IPEDS_filled.csv" under the column "ID.number", and also keep the order in "data/IPEDS_filled.csv"
+scorecard <- scorecard[scorecard$UNITID %in% IPEDS_data$ID.number, ]
+
+# Filter out column "year" = 2011
+scorecard <- scorecard[scorecard$Year == 2011, ]
+write.csv(scorecard, "data/Scorecard_filtered_2011.csv", row.names = FALSE)
+```{r}
